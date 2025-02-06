@@ -19,7 +19,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.transaction.PlatformTransactionManager;
 
 @Configuration
@@ -39,14 +41,24 @@ public class BatchConfiguration {
     @Bean
     public Step step(JobRepository jobRepository, PlatformTransactionManager transactionManager){
         return  new StepBuilder("csv-steps", jobRepository)
-                .<Person, Person>chunk(100, transactionManager)
+                .<Person, Person>chunk(1000, transactionManager)
                 .reader(itemReader())
                 .processor(itemProcessor())
                 .writer(itemWriter())
+                .taskExecutor(taskExecutor())
                 .faultTolerant()
                 .skip(ObjectOptimisticLockingFailureException.class)
                 .skipLimit(10)
                 .build();
+    }
+
+    @Bean
+    public TaskExecutor taskExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(4);
+        executor.setMaxPoolSize(8);
+        executor.setQueueCapacity(20);
+        return executor;
     }
 
     @Bean
